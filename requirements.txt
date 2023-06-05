@@ -1,0 +1,6 @@
+pyautogui
+pyaudio
+cryptography
+pywin32
+opencv-python
+

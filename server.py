@@ -221,13 +221,20 @@ def download_file(conn, filename):
         if response == 'FileNotFound':
             print('File not found on the remote server')
         else:
+            
+            filesize = conn.recv(1024).decode()
+            filesize = int(filesize)
+            progress = tqdm.tqdm(range(filesize), f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+            print("[~] Downloading [ {} ]...".format(filename))
+            
             with open(filename, 'wb') as file:
                 while True:
                     data = conn.recv(1024)
                     if data == b'Done':
-                        print('File downloaded successfully')
+                        print(' File downloaded successfully')
                         break
                     file.write(data)
+                    progress.update(len(data))
     except Exception as e:
         print('Error occurred while downloading the file:', str(e))
 
@@ -313,19 +320,23 @@ def upload_file(conn, filename):
     try:
         if os.path.exists(filename):
             conn.send(b'Exists')
+            filesize = os.path.getsize(filename)
             response = conn.recv(1024).decode()
             if response == 'File Not Found':
                 print('File already exists on the remote server')
             else:
+                progress = tqdm.tqdm(range(filesize), f"Sending {filename}",unit="B", unit_scale=True, unit_divisor=1024)
+                print("[~] Uploading [ {} ]...".format(filename))
                 with open(filename, 'rb') as file:
                     while True:
                         data = file.read(1024)
                         if not data:
                             break
                         conn.sendall(data)
+                        progress.update(len(data))
                 time.sleep(0.5)
                 conn.send(b'Done')
-                print('File uploaded successfully')
+                print(' File uploaded successfully')
         else:
             conn.send(b'NotFound')
             print('File not found on the local machine')

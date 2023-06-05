@@ -102,11 +102,14 @@ def receive_commands():
 def download_file(filename):
     try:
         if os.path.exists(filename):
+            filesize = os.path.getsize(filename)
+            filesize = str(filesize)
             s.send(b'Exists')
             response = s.recv(1024).decode()
             if response == 'FileExists':
                 print('File already exists on the remote server')
             else:
+                s.send(str.encode(filesize))
                 with open(filename, 'rb') as file:
                     while True:
                         data = file.read(1024)
