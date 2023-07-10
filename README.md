@@ -8,19 +8,23 @@ multiple clients and allows the server to select a client to connect to and cont
 
 
 ## Installation
-For this to work you should have python installed.
-For installation open git bash if on windows to simply clone it.
-
+For installation open git bash if on windows to simply clone it 
 git clone https://github.com/Annor-Gyimah/REVERSE-SHELL-MULTIPLE-CLIENTS.git
-* First open the CMD and run "pip install -r requirements.txt"
-e.g. pip install -r requirements.txt
+Or download the zip file of this repo
+
+For client side, you need to have python installed
+* Then you open the CMD and run "pip install -r requirements.txt"
+
+* Or you can convert it to an executable file and run the executable on the client's
+machine. You can try python packages like pyinstaller, etc for making the executable.
+
 
 ## Usage
 * The server.py file should be installed on the attacker
 machine while the client.py runs on the target(victim) machine
-* On the windows terminal, run "python server.py"
+* On the windows terminal, run "python server.py" to wait for connections from the client.
 e.g. python server.py
-* Make sure the clients.py have the same ip address and port number as the server.py
+* Make sure the client.py have the same ip address and port number as the server.py
 * If python is installed you, open the client.py with your favourite text editor then compile it with python or
 you can open the windows CMD as well then you run "python client.py"
 
