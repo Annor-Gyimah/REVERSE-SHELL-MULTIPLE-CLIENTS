@@ -2,5 +2,5 @@ pyautogui==0.9.53
 pyaudio==0.2.13
 cryptography==37.0.1
 pywin32==306
-opencv-python==4.7.0.72
-
+opencv-python==4.8.0.74
+tqdm

