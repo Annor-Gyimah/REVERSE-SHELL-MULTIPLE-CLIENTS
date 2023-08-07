@@ -20,13 +20,16 @@ machine. You can try python packages like pyinstaller, etc for making the execut
 
 
 ## Usage
-* The server.py file should be installed on the attacker
-machine while the client.py runs on the target(victim) machine
+* The server.py file should be installed on the attacker's machine while the client.py runs on the target(victim) machine.
 * On the windows terminal, run "python server.py" to wait for connections from the client.
 e.g. python server.py
-* Make sure the client.py have the same ip address and port number as the server.py
-* If python is installed you, open the client.py with your favourite text editor then compile it with python or
-you can open the windows CMD as well then you run "python client.py"
+* Make sure the client.py have the same ip address and port number as the server.py.
+* If doing test on the same computer, just open another terminal after the first terminal for the server.py and
+run python client.py.
+* If not on the same computer but on the same network, you can convert the script to an executable file by using
+pyinstaller and running the .exe file on the client side. Read the docs on how to do it. Before you run the 
+.exe on the client's side make sure to deactivate the windows defender or any other anti-virus software.
+
 
 
 ## Functionalities

